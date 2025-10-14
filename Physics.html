@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Magnetic Lab — Numerical Biot-Savart (Standalone)</title>
+
+  <!-- Three.js and examples via CDN (module) -->
+  <script type="module">
+    // nothing here—actual module imports are inside the main module script below
+  </script>
+
+  <style>
+    /* Dark theme styles */
+    :root{
+      --bg:#05060a;
+      --panel: rgba(255,255,255,0.04);
+      --muted:#bfcbdc;
+      --accent:#3ad1ff;
+      --accent2:#ffd36e;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#071021);font-family:Inter, system-ui, Arial}
+    .app{height:100vh;display:flex;flex-direction:column;color:#fff}
+    .topbar{padding:12px 14px;font-weight:700;border-bottom:1px solid rgba(255,255,255,0.03)}
+    .content{flex:1;display:flex;gap:12px}
+    .canvas-wrap{flex:1;position:relative;overflow:hidden;border-radius:8px}
+    canvas{display:block;width:100%;height:100%}
+    .sidebar{width:360px;padding:12px;overflow:auto}
+    .panel{background:var(--panel);padding:12px;border-radius:8px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type="range"]{width:100%}
+    select,input[type="number"]{width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff}
+    button{padding:8px 10px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700}
+    .row{display:flex;gap:8px}
+    .small{font-size:12px;color:#c7d7e6}
+    .muted{color:#9fb0c6;font-size:13px}
+    .log{max-height:240px;overflow:auto;margin-top:8px;background:rgba(255,255,255,0.02);padding:8px;border-radius:6px}
+    .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .note{font-size:12px;color:#bfcbdc;margin-top:8px}
+    .big-btn{width:100%;padding:10px;border-radius:8px;background:linear-gradient(90deg,var(--accent),#6ce5ff);color:#031019;border:none;font-weight:800}
+    .muted-2{color:#c8d7e8}
+    .formula{background:rgba(0,0,0,0.2);padding:8px;border-radius:6px;margin-top:6px;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">Magnetic Lab — Numerical Biot–Savart — Dark Mode</div>
+    <div class="content">
+      <div class="canvas-wrap" id="view">
+        <!-- Three.js canvas will be injected here -->
+      </div>
+
+      <div class="sidebar">
+        <div class="panel">
+          <h3 style="margin:0">Controls</h3>
+          <div style="height:8px"></div>
+
+          <label>Mode</label>
+          <select id="mode">
+            <option value="wire">Wire (سلك)</option>
+            <option value="loop">Loop (حلقة)</option>
+            <option value="solenoid">Solenoid (سولينويد)</option>
+          </select>
+
+          <div style="height:8px"></div>
+
+          <label>Current I (A)</label>
+          <input id="I" type="range" min="-10" max="10" step="0.1" value="1" />
+          <div class="row" style="align-items:center;margin-top:6px">
+            <input id="Inum" type="number" value="1.0" step="0.1" />
+            <div style="flex:1"></div>
+            <button id="reverse">عكس الاتجاه</button>
+          </div>
+
+          <hr style="border:none;height:8px">
+
+          <label>Wire length (m)</label>
+          <input id="wireLength" type="range" min="1" max="30" step="0.5" value="8" />
+          <div class="row small"><input id="wireLengthNum" type="number" value="8" step="0.1" /><div style="flex:1"></div></div>
+
+          <div style="height:8px"></div>
+
+          <label>Loop radius R (m)</label>
+          <input id="loopR" type="range" min="0.05" max="2.0" step="0.01" value="0.6" />
+          <div class="row small"><input id="loopRnum" type="number" value="0.6" step="0.01" /><div style="flex:1"></div></div>
+
+          <div style="height:8px"></div>
+
+          <label>Solenoid: radius R (m)</label>
+          <input id="solR" type="range" min="0.05" max="1.5" step="0.01" value="0.45" />
+          <div class="row small"><input id="solRnum" type="number" value="0.45" step="0.01" /><div style="flex:1"></div></div>
+
+          <label>Solenoid: N (total turns)</label>
+          <input id="solN" type="range" min="1" max="400" step="1" value="40" />
+          <div class="row small"><input id="solNnum" type="number" value="40" step="1" /><div style="flex:1"></div></div>
+
+          <label>Solenoid length L (m)</label>
+          <input id="solL" type="range" min="0.05" max="5" step="0.01" value="1.0" />
+          <div class="row small"><input id="solLnum" type="number" value="1.0" step="0.01" /><div style="flex:1"></div></div>
+
+          <div style="height:8px"></div>
+
+          <label>Integration segments (numerical solver)</label>
+          <input id="segments" type="range" min="16" max="1024" step="4" value="240" />
+          <div class="row small"><input id="segmentsNum" type="number" value="240" step="4" /><div style="flex:1"></div></div>
+
+          <div style="height:8px"></div>
+
+          <div class="controls-grid">
+            <div>
+              <label><input type="checkbox" id="showFields" checked/> Show field tubes</label>
+            </div>
+            <div>
+              <label><input type="checkbox" id="showVectors" checked/> Show arrows</label>
+            </div>
+            <div>
+              <label><input type="checkbox" id="showFlux" checked/> Show flux plane</label>
+            </div>
+            <div>
+              <label><input type="checkbox" id="antialias" checked/> Antialias (if device ok)</label>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <button class="big-btn" id="downloadCSV">Download CSV</button>
+          <div style="height:8px"></div>
+          <button class="big-btn" id="screenshot">Screenshot</button>
+
+          <div class="note">Probe: اضغط على السطح (المستوى) داخل المشهد لقياس B باستخدام التكامل العددي (Biot–Savart). النتائج تحفظ تلقائيًا في سجل القياسات.</div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="panel">
+          <h3 style="margin:0">Quick verified theory</h3>
+          <div class="muted-2 formula">
+            <strong>Wire:</strong> B(r) = μ₀ I / (2π r).<br/>
+            <strong>Loop (axis):</strong> Bₓ = μ₀ I R² / (2 (R² + x²)^{3/2}).<br/>
+            <strong>Solenoid (approx):</strong> B ≈ μ₀ (N/L) I inside.<br/>
+            <small class="muted">(Probe performs numerical Biot–Savart for more accurate local B.)</small>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <h4 style="margin:0">Probe & Log</h4>
+          <div id="last" class="muted">No measurement yet. اضغط على السطح في المشهد.</div>
+
+          <div class="log" id="log"></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="panel">
+          <h4 style="margin:0">How to use (mobile)</h4>
+          <ol class="small muted-2">
+            <li>احفظ هذا الملف كـ <code>magnetic_lab.html</code> على جهازك.</li>
+            <li>افتحه في المتصفح (Chrome أو Firefox).</li>
+            <li>اختر الوضع، اضبط القيم، ثم اضغط في المشهد لقياس B رقمياً.</li>
+            <li>لـ GitHub Pages: ارفع الملف للـ repo ثم فعّل Pages من الإعدادات.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main module script: loads three, examples and implements simulation -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+    import { TubeGeometry } from 'https://unpkg.com/three@0.152.2/examples/jsm/geometries/TubeGeometry.js';
+
+    // ---------- Constants ----------
+    const MU0 = 4 * Math.PI * 1e-7;
+    const view = document.getElementById('view');
+
+    // ---------- Renderer ----------
+    const antialiasCheckbox = document.getElementById('antialias');
+    const renderer = new THREE.WebGLRenderer({ antialias: antialiasCheckbox.checked, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio ? Math.min(window.devicePixelRatio, 2) : 1);
+    renderer.setSize(view.clientWidth, view.clientHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    view.appendChild(renderer.domElement);
+
+    // ---------- Scene & Camera ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x071021);
+    const camera = new THREE.PerspectiveCamera(50, view.clientWidth / view.clientHeight, 0.01, 200);
+    camera.position.set(0, 2.6, 7);
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(6, 10, 6);
+    scene.add(dir);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      renderer.setSize(view.clientWidth, view.clientHeight);
+      camera.aspect = view.clientWidth / view.clientHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // ---------- Helpers: geometry builders ----------
+    class CircleCurve extends THREE.Curve {
+      constructor(radius=1,y=0){ super(); this.radius=radius; this.y=y; }
+      getPoint(t){ const ang=t*Math.PI*2; return new THREE.Vector3(Math.cos(ang)*this.radius,this.y,Math.sin(ang)*this.radius); }
+    }
+    class LoopBulgeCurve extends THREE.Curve {
+      constructor(radius=0.6,phase=0){ super(); this.radius=radius; this.phase=phase; }
+      getPoint(t){ const ang=t*Math.PI*2; const x=Math.cos(ang)*this.radius*(1+0.06*Math.sin(ang+this.phase)); const y=0.18*Math.sin(ang*2+this.phase); const z=Math.sin(ang)*this.radius*(0.6+0.04*Math.cos(ang+this.phase)); return new THREE.Vector3(x,y,z); }
+    }
+
+    // ---------- Scene objects ----------
+    const groupRoot = new THREE.Group();
+    scene.add(groupRoot);
+
+    // Wire mesh (cylinder along Y)
+    const wireMat = new THREE.MeshStandardMaterial({ color: 0xd86d6d, metalness: 0.6, roughness: 0.25 });
+    const wireGeo = new THREE.CylinderGeometry(0.06, 0.06, 8, 48);
+    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    wireMesh.visible = true;
+    groupRoot.add(wireMesh);
+
+    // Loop mesh
+    let loopMesh = null;
+    function createLoop(R){ if(loopMesh){ groupRoot.remove(loopMesh); loopMesh.geometry.dispose(); loopMesh.material.dispose(); } const g = new THREE.TorusGeometry(R, 0.03, 16, 128); const m = new THREE.MeshStandardMaterial({ color: 0xbff1b0, metalness:0.36, roughness:0.34 }); loopMesh = new THREE.Mesh(g,m); loopMesh.rotation.x = Math.PI/2; groupRoot.add(loopMesh); }
+
+    // Solenoid group
+    let solGroup = null;
+    function createSolenoid(R,N,L){
+      if(solGroup){ solGroup.children.forEach(c=>{ c.geometry.dispose(); c.material.dispose(); }); groupRoot.remove(solGroup); }
+      solGroup = new THREE.Group(); solGroup.position.set(0,-L/2,0);
+      const gap = L / Math.max(1,N-1);
+      for(let i=0;i<N;i++){
+        const g = new THREE.TorusGeometry(R,0.012,8,64);
+        const m = new THREE.MeshStandardMaterial({ color:0x8fb8ff, metalness:0.18, roughness:0.58 });
+        const mesh = new THREE.Mesh(g,m); mesh.rotation.x = Math.PI/2; mesh.position.y = i*gap;
+        solGroup.add(mesh);
+      }
+      groupRoot.add(solGroup);
+    }
+
+    // Field tubes container
+    const fieldGroup = new THREE.Group(); groupRoot.add(fieldGroup);
+    function clearFieldTubes(){ while(fieldGroup.children.length) { const c = fieldGroup.children.pop(); c.geometry && c.geometry.dispose(); c.material && c.material.dispose(); } }
+
+    // Direction arrows group
+    const arrowsGroup = new THREE.Group(); groupRoot.add(arrowsGroup);
+    function rebuildArrows(radius=1.6,count=14, current=1){
+      arrowsGroup.clear();
+      for(let a=0;a<count;a++){
+        const t=(a/count)*Math.PI*2; const x=Math.cos(t)*radius; const z=Math.sin(t)*radius; const nx=-Math.sin(t); const nz=Math.cos(t);
+        const fx=x, fy=0, fz=z; const tx=x+nx*0.22, tz=z+nz*0.22;
+        // cylinder body
+        const dir=[tx-fx, 0, tz-fz]; const len=Math.hypot(dir[0],dir[2]) || 0.0001;
+        const mid=[(fx+tx)/2,0,(fz+tz)/2]; const angle = Math.atan2(dir[2], dir[0]);
+        const g = new THREE.Group(); g.position.set(mid[0], mid[1], mid[2]); g.rotation.y = -angle;
+        const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.0065,0.0065,len*0.9,6), new THREE.MeshStandardMaterial({ color: current>=0?0x9ef0ff:0xffb3b3 }));
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.028,0.05,8), new THREE.MeshStandardMaterial({ color: current>=0?0x8fe8ff:0xff7a7a }));
+        cyl.rotation.x = Math.PI/2; cyl.position.z = 0;
+        cone.position.z = len*0.45; cone.rotation.x = Math.PI/2;
+        g.add(cyl); g.add(cone);
+        arrowsGroup.add(g);
+      }
+    }
+
+    // Flux plane
+    const fluxPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.4,3.4), new THREE.MeshStandardMaterial({ color:0xffd27a, transparent:true, opacity:0.12 }));
+    fluxPlane.rotation.x = -Math.PI/2;
+    groupRoot.add(fluxPlane);
+
+    // ---------- Numeric Biot-Savart solver ----------
+    // Integrate using piecewise straight current segments: dB = μ0/(4π) * I * (dl × r̂) / r^2
+    function biotSavartSegments(I, segments, points, evalPoint){
+      // points: array of Vector3 defining polyline path in order
+      // segments: number of subdivisions per segment (not used here, as points are already fine)
+      // evalPoint: Vector3
+      const B = new THREE.Vector3(0,0,0);
+      const coef = MU0 * I / (4 * Math.PI);
+      for(let i=0;i<points.length-1;i++){
+        const a = points[i];
+        const b = points[i+1];
+        const dl = new THREE.Vector3().subVectors(b,a);
+        const r = new THREE.Vector3().subVectors(evalPoint, a); // r from source to field point
+        const r2 = r.lengthSq();
+        if (r2 === 0) continue;
+        // compute cross(dl, r) / r^2
+        const cross = new THREE.Vector3().crossVectors(dl, r);
+        // divide by r^2 * |r|
+        const denom = Math.pow(r.length(), 3); // r^3 -> because cross/distance^3 approximates integral for straight dl at near field
+        if (denom === 0) continue;
+        B.addScaledVector(cross, coef / (denom));
+      }
+      return B; // Tesla (approx)
+    }
+
+    // builder: create polyline for single loop discretized
+    function buildLoopPath(R, segments){
+      const pts = [];
+      for(let i=0;i<segments;i++){
+        const t = (i/segments)*Math.PI*2;
+        pts.push(new THREE.Vector3(Math.cos(t)*R, 0, Math.sin(t)*R));
+      }
+      // close loop: add first point again
+      pts.push(pts[0].clone());
+      return pts;
+    }
+
+    // builder: solenoid as N loops along length L, approximate each loop with 'segPerLoop' points
+    function buildSolenoidPaths(R, N, L, segPerLoop){
+      const loops = [];
+      const spacing = L / Math.max(1, N-1);
+      for(let k=0;k<N;k++){
+        const y = -L/2 + k*spacing;
+        const pts = [];
+        for(let i=0;i<segPerLoop;i++){
+          const t=(i/segPerLoop)*Math.PI*2;
+          pts.push(new THREE.Vector3(Math.cos(t)*R, y, Math.sin(t)*R));
+        }
+        pts.push(pts[0].clone());
+        loops.push(pts);
+      }
+      return loops;
+    }
+
+    // ---------- UI bindings & render/update ----------
+    const el = (id)=>document.getElementById(id);
+    const modeEl = el('mode');
+    const Irange = el('I'), Inum = el('Inum'), reverseBtn = el('reverse');
+    const wireL = el('wireLength'), wireLnum = el('wireLengthNum');
+    const loopR = el('loopR'), loopRnum = el('loopRnum');
+    const solR = el('solR'), solRnum = el('solRnum'), solN = el('solN'), solNnum = el('solNnum'), solL = el('solL'), solLnum = el('solLnum');
+    const seg = el('segments'), segNum = el('segmentsNum');
+    const showFields = el('showFields'), showVectors = el('showVectors'), showFlux = el('showFlux'), showAntialias = el('antialias');
+    const downloadCSV = el('downloadCSV'), screenshotBtn = el('screenshot');
+    const last = el('last'), log = el('log');
+
+    // sync numeric inputs with ranges
+    function syncRangeToNum(rangeEl, numEl){
+      rangeEl.addEventListener('input', ()=>{ numEl.value = rangeEl.value; updateAndRender(); });
+      numEl.addEventListener('change', ()=>{ rangeEl.value = numEl.value; updateAndRender(); });
+    }
+    syncRangeToNum(Irange, Inum);
+    syncRangeToNum(wireL, wireLnum);
+    syncRangeToNum(loopR, loopRnum);
+    syncRangeToNum(solR, solRnum);
+    syncRangeToNum(solN, solNnum);
+    syncRangeToNum(solL, solLnum);
+    syncRangeToNum(seg, segNum);
+
+    reverseBtn.addEventListener('click', ()=>{ Inum.value = (-1 * parseFloat(Inum.value)).toFixed(2); Inum.dispatchEvent(new Event('change')); });
+
+    // State update/rebuild
+    function updateAndRender(){
+      const mode = modeEl.value;
+      const I = parseFloat(Inum.value);
+      const wireLength = parseFloat(wireLnum.value);
+      const Rloop = parseFloat(loopRnum.value);
+      const Rsol = parseFloat(solRnum.value);
+      const Nsol = parseInt(solNnum.value);
+      const Lsol = parseFloat(solLnum.value);
+      const segments = parseInt(segNum.value);
+      // update meshes
+      // wire
+      wireMesh.visible = (mode==='wire');
+      wireMesh.geometry.dispose();
+      wireMesh.geometry = new THREE.CylinderGeometry(0.06,0.06,wireLength,48);
+      // loop
+      if(mode==='loop'){ createLoop(Rloop); loopMesh.visible = true; } else if(loopMesh){ loopMesh.visible = false; }
+      // solenoid
+      if(mode==='solenoid'){ createSolenoid(Rsol,Nsol,Lsol); solGroup.visible = true; } else if(solGroup){ solGroup.visible = false; }
+
+      // flux plane
+      fluxPlane.visible = showFlux.checked;
+
+      // rebuild field tubes if showFields
+      clearFieldTubes();
+      if(showFields.checked){
+        if(mode==='wire'){
+          // create circular ring curves
+          const nField = 8;
+          for(let i=0;i<nField;i++){
+            const r = (i+1)/nField * 2.6 + 0.08;
+            const curve = new CircleCurve(r, 0);
+            const tube = buildColoredTube(curve, 140, 0.02 + (i/nField)*0.008, (pt)=>colorMapWire(pt,I));
+            fieldGroup.add(tube);
+          }
+        } else if(mode==='loop'){
+          for(let i=0;i<10;i++){
+            const curve = new LoopBulgeCurve(Rloop + i*0.06, i*0.4);
+            const tube = buildColoredTube(curve, 200, 0.018 + (i/10)*0.01, (pt)=>colorMapLoop(pt,I,Rloop));
+            fieldGroup.add(tube);
+          }
+        } else if(mode==='solenoid'){
+          // inside straight lines (approx)
+          const count = Math.min(18, Math.max(6, Math.floor(10)));
+          for(let i=0;i<count;i++){
+            const angle=(i/count)*Math.PI*2; const x=Math.cos(angle)*Rsol*0.5; const z=Math.sin(angle)*Rsol*0.5;
+            const curve = new (class extends THREE.Curve { getPoint(t){ const y=-Lsol/2 + t*Lsol; return new THREE.Vector3(x,y,z); }})();
+            const tube = buildColoredTube(curve, 48, 0.012 + (i/count)*0.006, (pt)=>colorMapSol(pt,I,Rsol,Nsol,Lsol));
+            fieldGroup.add(tube);
+          }
+        }
+      }
+
+      // arrows
+      arrowsGroup.visible = showVectors.checked;
+      rebuildArrows(1.6, 14, I);
+
+      renderer.render(scene, camera);
+    }
+
+    // color map functions
+    function colorMapWire(pt,I){
+      const r = Math.sqrt(pt.x*pt.x + pt.z*pt.z);
+      const b = Math.abs( MU0 * I / (2*Math.PI*Math.max(r,1e-6)) );
+      const scale = Math.abs(I) * 1e-6;
+      return Math.min(1, b / Math.max(scale, 1e-12));
+    }
+    function colorMapLoop(pt,I,R){
+      const b = Math.abs( (MU0 * I * R * R) / (2 * Math.pow(R*R + pt.y*pt.y, 1.5)) );
+      const scale = Math.abs(I) * 6e-7;
+      return Math.min(1, b / Math.max(scale, 1e-12));
+    }
+    function colorMapSol(pt,I,R,N,L){
+      const inside = Math.abs(pt.y) <= L/2 && (pt.x*pt.x + pt.z*pt.z) <= R*R;
+      const b = inside ? Math.abs(MU0 * (N/Math.max(L,1e-6)) * I) : Math.abs(MU0 * (N/Math.max(L,1e-6)) * I)*0.08;
+      const scale = Math.abs(I) *
